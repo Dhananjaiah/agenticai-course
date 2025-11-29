@@ -3,11 +3,12 @@ fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 pydantic>=2.5.0
 
+# LangGraph and LangChain for agent workflow
+langgraph>=1.0.0
+langchain>=1.0.0
+langchain-core>=1.0.0
+langchain-openai>=1.0.0
+
 # Testing
 pytest>=7.4.0
 httpx>=0.26.0
-
-# Optional: LLM integration (uncomment when needed)
-# openai>=1.0.0
-# langchain>=0.1.0
-# langgraph>=0.0.1

@@ -1,17 +1,23 @@
 """
-LLM Answer Builder - Generates friendly responses using an LLM.
+LLM Answer Builder - Generates friendly responses using LangChain LLM models.
 
 This module:
 1. Takes structured data from the orchestrator (policy, claim, docs, flags)
-2. Formats it into a prompt for the LLM
+2. Formats it into a prompt for the LLM using LangChain
 3. Calls the LLM to generate a customer-friendly response
 4. Returns the response
 
 For local/test environments, it can bypass the LLM and return hard-coded responses.
+Supports OpenAI, Azure OpenAI, and other LangChain-compatible LLM providers.
 """
 
 import logging
 from typing import Optional
+
+from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.language_models.base import BaseLanguageModel
+
 from backend.config.settings import get_settings
 from backend.orchestrator import OrchestratorResult
 
@@ -20,13 +26,15 @@ logger = logging.getLogger(__name__)
 
 class LLMAnswerBuilder:
     """
-    Builds customer-friendly answers using an LLM.
+    Builds customer-friendly answers using LangChain LLM models.
     
     The builder:
     - Takes structured data from the orchestrator
-    - Creates a prompt with the data
-    - Calls the LLM (or returns a mock response)
+    - Creates a prompt with the data using LangChain ChatPromptTemplate
+    - Calls the LLM via LangChain (or returns a mock response)
     - Returns the final answer
+    
+    Supports OpenAI and other LangChain-compatible LLM providers.
     """
     
     # System prompt that tells the LLM how to respond
@@ -43,10 +51,58 @@ Guidelines:
 
 Respond in 2-3 sentences maximum."""
 
-    def __init__(self):
-        """Initialize the LLM answer builder."""
+    def __init__(self, llm: Optional[BaseLanguageModel] = None):
+        """
+        Initialize the LLM answer builder.
+        
+        Args:
+            llm: Optional LangChain LLM model. If not provided, will attempt
+                 to create one from settings or use mock responses.
+        """
         self.settings = get_settings()
+        self.llm = llm
+        self._chain = None
+        
+        # Create LangChain prompt template
+        self.prompt_template = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template(self.SYSTEM_PROMPT),
+            HumanMessagePromptTemplate.from_template("{user_prompt}")
+        ])
+        
+        # Initialize LLM chain if API key is available
+        if not self.settings.llm_bypass and self.settings.llm_api_key:
+            self._initialize_llm_chain()
+        
         logger.info(f"LLMAnswerBuilder initialized (bypass={self.settings.llm_bypass})")
+    
+    def _initialize_llm_chain(self):
+        """
+        Initialize the LangChain LLM chain.
+        
+        This sets up the chain with the configured LLM provider.
+        """
+        try:
+            if self.llm is None:
+                # Try to create OpenAI LLM if API key is available
+                from langchain_openai import ChatOpenAI
+                self.llm = ChatOpenAI(
+                    api_key=self.settings.llm_api_key,
+                    model="gpt-3.5-turbo",
+                    temperature=0.7,
+                    max_tokens=200
+                )
+                logger.info("Initialized ChatOpenAI LLM")
+            
+            # Create the chain: prompt -> llm -> output parser
+            self._chain = self.prompt_template | self.llm | StrOutputParser()
+            logger.info("LangChain chain initialized successfully")
+            
+        except ImportError as e:
+            logger.warning(f"Could not import LLM provider: {e}")
+            self._chain = None
+        except Exception as e:
+            logger.error(f"Error initializing LLM chain: {e}")
+            self._chain = None
     
     def _create_prompt(self, result: OrchestratorResult) -> str:
         """
@@ -169,35 +225,25 @@ Respond in 2-3 sentences maximum."""
     
     def _call_llm(self, prompt: str) -> str:
         """
-        Call the actual LLM API.
+        Call the LLM using LangChain.
         
         Args:
             prompt: The formatted prompt
             
         Returns:
             The LLM's response
-            
-        Note:
-            This is a placeholder for the actual LLM API call.
-            In production, you would use OpenAI, Anthropic, or another LLM.
         """
-        # TODO: Implement actual LLM API call
-        # Example with OpenAI:
-        # import openai
-        # openai.api_key = self.settings.llm_api_key
-        # response = openai.ChatCompletion.create(
-        #     model="gpt-3.5-turbo",
-        #     messages=[
-        #         {"role": "system", "content": self.SYSTEM_PROMPT},
-        #         {"role": "user", "content": prompt}
-        #     ],
-        #     max_tokens=200,
-        #     temperature=0.7
-        # )
-        # return response.choices[0].message.content
+        if self._chain is None:
+            logger.warning("LangChain chain not initialized, returning placeholder")
+            return "This is a placeholder response. Configure LLM_API_KEY for real responses."
         
-        logger.warning("LLM API not implemented, returning mock response")
-        return "This is a placeholder response. Configure LLM_API_KEY for real responses."
+        try:
+            # Invoke the LangChain chain
+            response = self._chain.invoke({"user_prompt": prompt})
+            return response
+        except Exception as e:
+            logger.error(f"Error calling LLM via LangChain: {e}")
+            raise
     
     def build_answer(self, result: OrchestratorResult) -> str:
         """
