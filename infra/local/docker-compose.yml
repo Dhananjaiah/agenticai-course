@@ -1,0 +1,56 @@
+# Docker Compose configuration for local development
+# This sets up the backend service with mock databases
+
+services:
+  # Main FastAPI application
+  app:
+    build:
+      context: ../
+      dockerfile: infra/local/Dockerfile
+    container_name: insurance-assistant-app
+    ports:
+      - "8000:8000"
+    environment:
+      # Local environment configuration
+      - ENV=local
+      - POLICY_DB_URL=sqlite:///data/policy.db
+      - CLAIMS_DB_URL=sqlite:///data/claims.db
+      - DOCS_STORE_TYPE=mock
+      - LLM_API_KEY=
+      - LLM_BYPASS=true
+    volumes:
+      # Mount source code for hot reloading
+      - ../backend:/app/backend
+      # Persist SQLite data
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Note: For local development, we use in-memory mock data
+# In a real setup, you might add:
+#
+# mock-policy-db:
+#   image: postgres:15-alpine
+#   environment:
+#     POSTGRES_DB: policy
+#     POSTGRES_USER: user
+#     POSTGRES_PASSWORD: password
+#   volumes:
+#     - policy_data:/var/lib/postgresql/data
+#
+# mock-claims-db:
+#   image: postgres:15-alpine
+#   environment:
+#     POSTGRES_DB: claims
+#     POSTGRES_USER: user
+#     POSTGRES_PASSWORD: password
+#   volumes:
+#     - claims_data:/var/lib/postgresql/data
+
+networks:
+  default:
+    name: insurance-assistant-network

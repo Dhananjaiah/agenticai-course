@@ -1,0 +1,164 @@
+# Kubernetes Deployment for production environment
+# Deploys the FastAPI application with the LangGraph orchestrator
+#
+# Production considerations:
+# - Higher replica count for availability
+# - Stricter resource limits
+# - Pod Disruption Budgets
+# - Enhanced security context
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insurance-assistant
+  namespace: production
+  labels:
+    app: insurance-assistant
+    env: production
+spec:
+  # Production replica count - adjust based on traffic
+  replicas: 3
+  
+  selector:
+    matchLabels:
+      app: insurance-assistant
+      env: production
+  
+  # Rolling update strategy for zero-downtime deployments
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  
+  template:
+    metadata:
+      labels:
+        app: insurance-assistant
+        env: production
+      annotations:
+        # Prometheus metrics scraping (if enabled)
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Service account for production
+      # serviceAccountName: insurance-assistant-sa
+      
+      # Topology spread for high availability
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: insurance-assistant
+      
+      containers:
+        - name: app
+          # Replace with your actual container registry
+          image: your-registry.io/insurance-assistant:production
+          imagePullPolicy: Always
+          
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          
+          # Environment variables from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: insurance-assistant-config
+          
+          # Environment variables from Secrets
+          env:
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: insurance-assistant-secrets
+                  key: LLM_API_KEY
+          
+          # Health checks - stricter for production
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+          
+          # Startup probe for slow-starting containers
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          
+          # Production resource limits - adjust based on load testing
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          
+          # Strict security context for production
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+      
+      # Pod anti-affinity for high availability
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: insurance-assistant
+              topologyKey: kubernetes.io/hostname
+
+---
+# Pod Disruption Budget for production
+# Ensures minimum availability during voluntary disruptions
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: insurance-assistant-pdb
+  namespace: production
+  labels:
+    app: insurance-assistant
+    env: production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: insurance-assistant
+      env: production

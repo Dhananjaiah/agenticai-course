@@ -1,0 +1,115 @@
+# Kubernetes Service for production environment
+# Exposes the FastAPI application within the cluster
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: insurance-assistant
+  namespace: production
+  labels:
+    app: insurance-assistant
+    env: production
+spec:
+  type: ClusterIP
+  
+  selector:
+    app: insurance-assistant
+    env: production
+  
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP
+
+---
+# Ingress for production external access
+# Configure based on your ingress controller and domain
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: insurance-assistant
+  namespace: production
+  labels:
+    app: insurance-assistant
+    env: production
+  annotations:
+    # For nginx ingress controller
+    kubernetes.io/ingress.class: nginx
+    # HTTPS redirect
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+    # For cert-manager (production issuer)
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - insurance-assistant.yourdomain.com
+      secretName: insurance-assistant-tls
+  rules:
+    - host: insurance-assistant.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: insurance-assistant
+                port:
+                  number: 80
+
+---
+# Horizontal Pod Autoscaler for production
+# Automatically scales based on CPU/memory usage
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: insurance-assistant-hpa
+  namespace: production
+  labels:
+    app: insurance-assistant
+    env: production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: insurance-assistant
+  
+  minReplicas: 3
+  maxReplicas: 10
+  
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
