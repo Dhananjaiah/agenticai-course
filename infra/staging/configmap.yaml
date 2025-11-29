@@ -1,0 +1,28 @@
+# Kubernetes ConfigMap for staging environment
+# Contains non-sensitive configuration values
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: insurance-assistant-config
+  namespace: staging
+  labels:
+    app: insurance-assistant
+    env: staging
+data:
+  # Environment identifier
+  ENV: "staging"
+  
+  # Database configuration
+  # NOTE: Replace these with your actual staging database endpoints
+  POLICY_DB_URL: "postgresql://policy-db-staging.internal:5432/policy"
+  CLAIMS_DB_URL: "postgresql://claims-db-staging.internal:5432/claims"
+  
+  # Document storage type (s3, sharepoint, or mock)
+  DOCS_STORE_TYPE: "mock"
+  
+  # Set to "false" in staging to test real LLM integration
+  LLM_BYPASS: "true"
+  
+  # Log level
+  LOG_LEVEL: "INFO"

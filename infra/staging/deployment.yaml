@@ -1,0 +1,106 @@
+# Kubernetes Deployment for staging environment
+# Deploys the FastAPI application with the LangGraph orchestrator
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insurance-assistant
+  namespace: staging
+  labels:
+    app: insurance-assistant
+    env: staging
+spec:
+  # Start with 2 replicas for staging
+  replicas: 2
+  
+  selector:
+    matchLabels:
+      app: insurance-assistant
+      env: staging
+  
+  template:
+    metadata:
+      labels:
+        app: insurance-assistant
+        env: staging
+    spec:
+      # Add service account if needed for cloud integrations
+      # serviceAccountName: insurance-assistant-sa
+      
+      containers:
+        - name: app
+          # Replace with your actual container registry
+          image: your-registry.io/insurance-assistant:staging
+          imagePullPolicy: Always
+          
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          
+          # Environment variables from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: insurance-assistant-config
+          
+          # Environment variables from Secrets
+          env:
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: insurance-assistant-secrets
+                  key: LLM_API_KEY
+          
+          # Health checks
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          
+          # Resource limits
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          
+          # Security context
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+          
+          # Temporary directory for app needs
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      
+      # Pod anti-affinity for high availability
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: insurance-assistant
+                topologyKey: kubernetes.io/hostname

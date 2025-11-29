@@ -1,0 +1,30 @@
+# Kubernetes ConfigMap for production environment
+# Contains non-sensitive configuration values
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: insurance-assistant-config
+  namespace: production
+  labels:
+    app: insurance-assistant
+    env: production
+data:
+  # Environment identifier
+  ENV: "prod"
+  
+  # Database configuration
+  # NOTE: Replace these with your actual production database endpoints
+  # These should be high-availability clusters or managed database services
+  POLICY_DB_URL: "postgresql://policy-db-prod.internal:5432/policy"
+  CLAIMS_DB_URL: "postgresql://claims-db-prod.internal:5432/claims"
+  
+  # Document storage type
+  # In production, this should be "s3" or "sharepoint"
+  DOCS_STORE_TYPE: "s3"
+  
+  # LLM bypass should be "false" in production
+  LLM_BYPASS: "false"
+  
+  # Log level for production
+  LOG_LEVEL: "WARNING"

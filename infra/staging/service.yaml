@@ -1,0 +1,83 @@
+# Kubernetes Service for staging environment
+# Exposes the FastAPI application within the cluster
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: insurance-assistant
+  namespace: staging
+  labels:
+    app: insurance-assistant
+    env: staging
+spec:
+  type: ClusterIP
+  
+  selector:
+    app: insurance-assistant
+    env: staging
+  
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP
+
+---
+# Optional: Ingress for external access
+# Uncomment and configure based on your ingress controller
+#
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: insurance-assistant
+#   namespace: staging
+#   labels:
+#     app: insurance-assistant
+#     env: staging
+#   annotations:
+#     # For nginx ingress controller
+#     kubernetes.io/ingress.class: nginx
+#     # For HTTPS redirect
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#     # For cert-manager
+#     cert-manager.io/cluster-issuer: letsencrypt-staging
+# spec:
+#   tls:
+#     - hosts:
+#         - insurance-assistant-staging.yourdomain.com
+#       secretName: insurance-assistant-tls
+#   rules:
+#     - host: insurance-assistant-staging.yourdomain.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: insurance-assistant
+#                 port:
+#                   number: 80
+
+---
+# Optional: Gateway API (newer alternative to Ingress)
+# Uncomment if using Gateway API
+#
+# apiVersion: gateway.networking.k8s.io/v1
+# kind: HTTPRoute
+# metadata:
+#   name: insurance-assistant
+#   namespace: staging
+# spec:
+#   parentRefs:
+#     - name: main-gateway
+#       namespace: gateway-system
+#   hostnames:
+#     - insurance-assistant-staging.yourdomain.com
+#   rules:
+#     - matches:
+#         - path:
+#             type: PathPrefix
+#             value: /
+#       backendRefs:
+#         - name: insurance-assistant
+#           port: 80
