@@ -12,6 +12,7 @@ to gather information and generate helpful responses.
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,10 +52,17 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware (configure appropriately for production)
+# Add CORS middleware
+# In production, you should set ALLOWED_ORIGINS environment variable
+# to a comma-separated list of allowed origins (e.g., "https://app.example.com,https://www.example.com")
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+if settings.env == "prod" and allowed_origins == ["*"]:
+    logger.warning("CORS is configured to allow all origins in production. "
+                   "Set ALLOWED_ORIGINS environment variable for security.")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify actual origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
