@@ -14,10 +14,9 @@ that coordinates the agent workflow.
 
 import re
 import logging
-from typing import Optional, TypedDict, Annotated, Literal
+from typing import Optional, TypedDict
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
 
 from backend.agents import PolicyAgent, ClaimsAgent, DocsAgent
 from backend.config.settings import get_settings
@@ -401,26 +400,6 @@ def create_business_rules_node():
         }
     
     return apply_business_rules
-
-
-# Conditional routing functions for the graph
-
-
-def should_fetch_policy(state: AgentState) -> Literal["fetch_policy", "fetch_claim"]:
-    """Determine if we should fetch policy data first."""
-    if state.get("policy_id"):
-        return "fetch_policy"
-    return "fetch_claim"
-
-
-def should_fetch_policy_from_claim(state: AgentState) -> Literal["fetch_policy_from_claim", "fetch_documents"]:
-    """Determine if we need to fetch policy from claim data."""
-    claim_data = state.get("claim")
-    policy_data = state.get("policy")
-    
-    if claim_data and not policy_data:
-        return "fetch_policy_from_claim"
-    return "fetch_documents"
 
 
 class Orchestrator:

@@ -98,10 +98,14 @@ Respond in 2-3 sentences maximum."""
             logger.info("LangChain chain initialized successfully")
             
         except ImportError as e:
-            logger.warning(f"Could not import LLM provider: {e}")
+            logger.warning(
+                f"Could not import langchain_openai: {e}. "
+                "Install with: pip install langchain-openai. "
+                "Falling back to mock responses."
+            )
             self._chain = None
         except Exception as e:
-            logger.error(f"Error initializing LLM chain: {e}")
+            logger.error(f"Error initializing LLM chain: {e}. Falling back to mock responses.")
             self._chain = None
     
     def _create_prompt(self, result: OrchestratorResult) -> str:
